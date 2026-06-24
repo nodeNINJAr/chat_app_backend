@@ -86,6 +86,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         socket.to(conversationRoom(id)).emit('presence:online', { userId }),
       );
     }
+
+    // Incremental presence:online events only reach sockets already connected
+    // at the moment they fire — without this, a client connecting after a peer
+    // is already online would never learn that peer is online.
+    const otherUserIds =
+      await this.conversationsService.listMyOtherParticipantIds(userId);
+    const onlineUserIds = await this.presenceService.filterOnline(otherUserIds);
+    socket.emit('presence:snapshot', { onlineUserIds });
   }
 
   async handleDisconnect(socket: AuthedSocket): Promise<void> {

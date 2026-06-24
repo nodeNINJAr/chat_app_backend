@@ -39,4 +39,19 @@ export class PresenceService {
     const count = await this.client.hlen(this.key(userId));
     return count > 0;
   }
+
+  /** Subset of userIds that are currently online, checked in one round trip. */
+  async filterOnline(userIds: string[]): Promise<string[]> {
+    if (userIds.length === 0) return [];
+    const pipeline = this.client.pipeline();
+    for (const userId of userIds) {
+      pipeline.hlen(this.key(userId));
+    }
+    const results = await pipeline.exec();
+    if (!results) return [];
+    return userIds.filter((_, i) => {
+      const count = results[i]?.[1] as number | undefined;
+      return !!count && count > 0;
+    });
+  }
 }

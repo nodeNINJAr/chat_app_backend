@@ -165,6 +165,27 @@ export class ConversationsService {
     return rows.map((r) => r.conversationId.toString());
   }
 
+  /**
+   * Every other user sharing an active conversation with this user, deduped.
+   * Used to seed presence on socket connect — incremental presence:online
+   * events only reach sockets already connected at the moment they fire, so
+   * a client connecting after a peer is already online would otherwise never
+   * learn that peer is online.
+   */
+  async listMyOtherParticipantIds(userId: string): Promise<string[]> {
+    const conversationIds = await this.listMyConversationIds(userId);
+    const rows = await this.participantModel
+      .find({ conversationId: { $in: conversationIds }, leftAt: null })
+      .select('userId')
+      .exec();
+    const others = new Set<string>();
+    for (const r of rows) {
+      const id = r.userId.toString();
+      if (id !== userId) others.add(id);
+    }
+    return [...others];
+  }
+
   async updateParticipantState(
     conversationId: string,
     userId: string,
