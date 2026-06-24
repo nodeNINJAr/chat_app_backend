@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model, Types } from 'mongoose';
+import { conversationRoom } from '../../common/helpers/rooms';
+import { ChatRoomRegistry } from '../../infrastructure/websocket/chat-room-registry.service';
 import { UpdateParticipantStateDto } from './dto/update-participant-state.dto';
 import {
   ConversationParticipant,
@@ -25,6 +27,7 @@ export class ConversationsService {
     private readonly conversationModel: Model<ConversationDocument>,
     @InjectModel(ConversationParticipant.name)
     private readonly participantModel: Model<ConversationParticipantDocument>,
+    private readonly chatRoomRegistry: ChatRoomRegistry,
   ) {}
 
   async getOrCreateDirect(
@@ -50,6 +53,7 @@ export class ConversationsService {
         { conversationId: conversation._id, userId },
         { conversationId: conversation._id, userId: otherUserId },
       ]);
+      this.joinParticipantsToRoom(conversation.id, [userId, otherUserId]);
       return conversation;
     } catch (err) {
       // Race: another request created the same direct thread first — return it.
@@ -297,6 +301,27 @@ export class ConversationsService {
         },
       })),
       { session },
+    );
+    this.joinParticipantsToRoom(
+      conversationId,
+      entries.map((e) => e.userId),
+    );
+  }
+
+  /**
+   * Conversation room membership is otherwise only computed once, at socket
+   * connect time — without this, an already-connected user would miss every
+   * realtime event (new messages, reactions, edits, deletes) for a
+   * conversation created or joined after they connected, until they
+   * reconnect.
+   */
+  private joinParticipantsToRoom(
+    conversationId: string | Types.ObjectId,
+    userIds: string[],
+  ): void {
+    const room = conversationRoom(conversationId.toString());
+    userIds.forEach((userId) =>
+      this.chatRoomRegistry.joinUserToRoom(userId, room),
     );
   }
 

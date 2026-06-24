@@ -6,6 +6,7 @@ import {
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -24,6 +25,7 @@ import { SendMessageDto } from '../../modules/messages/dto/send-message.dto';
 import { MessagesService } from '../../modules/messages/messages.service';
 import { PresenceService } from '../../infrastructure/redis/presence.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
+import { ChatRoomRegistry } from '../../infrastructure/websocket/chat-room-registry.service';
 import { UsersService } from '../../modules/users/users.service';
 
 interface AuthedSocket extends Socket {
@@ -43,7 +45,9 @@ const TYPING_TTL_SECONDS = 5;
   namespace: '/chat',
   cors: { origin: process.env.CORS_ORIGIN, credentials: true },
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
+{
   @WebSocketServer()
   server!: Server;
 
@@ -55,7 +59,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly usersService: UsersService,
     private readonly presenceService: PresenceService,
     private readonly redisService: RedisService,
+    private readonly chatRoomRegistry: ChatRoomRegistry,
   ) {}
+
+  afterInit(server: Server): void {
+    this.chatRoomRegistry.setServer(server);
+  }
 
   async handleConnection(socket: AuthedSocket): Promise<void> {
     const userId = await authenticateSocket(

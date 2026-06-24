@@ -9,6 +9,7 @@ import { CallModule } from './gateways/call/call.module';
 import { ChatModule } from './gateways/chat/chat.module';
 import { DatabaseModule } from './infrastructure/database/mongo.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
+import { WebsocketModule } from './infrastructure/websocket/websocket.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { ConversationsModule } from './modules/conversations/conversations.module';
@@ -26,6 +27,7 @@ import { UsersModule } from './modules/users/users.module';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     DatabaseModule,
     RedisModule,
+    WebsocketModule,
     AuthModule,
     UsersModule,
     ConversationsModule,
