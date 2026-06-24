@@ -122,7 +122,10 @@ export class AuthController {
     return {
       httpOnly: true,
       secure: isProd,
-      sameSite: 'strict',
+      // Frontend (Vercel) and backend (VPS) are different sites in production,
+      // so the refresh cookie must be sendable cross-site. SameSite=None requires
+      // Secure, which is already forced on whenever this matters.
+      sameSite: isProd ? 'none' : 'strict',
       path: '/auth',
     };
   }
