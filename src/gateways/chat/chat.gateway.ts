@@ -146,13 +146,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       socket.data.userId,
       dto,
     );
+    const conversationId = message.conversationId.toString();
     if (dto.mode === 'me') {
-      socket.emit('message:deleted', { messageId: message.id, mode: 'me' });
+      socket.emit('message:deleted', {
+        messageId: message.id,
+        conversationId,
+        mode: 'me',
+      });
       return;
     }
-    this.server
-      .to(conversationRoom(message.conversationId.toString()))
-      .emit('message:deleted', { messageId: message.id, mode: 'everyone' });
+    this.server.to(conversationRoom(conversationId)).emit('message:deleted', {
+      messageId: message.id,
+      conversationId,
+      mode: 'everyone',
+    });
   }
 
   @SubscribeMessage('message:react')
@@ -168,6 +175,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       .to(conversationRoom(message.conversationId.toString()))
       .emit('message:reaction-updated', {
         messageId: message.id,
+        conversationId: message.conversationId.toString(),
         reactions: message.reactions,
       });
   }

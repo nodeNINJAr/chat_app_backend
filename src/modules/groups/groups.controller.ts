@@ -17,6 +17,7 @@ import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupSettingsDto } from './dto/update-group-settings.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { GroupsService } from './groups.service';
+import type { GroupDocument } from './schemas/group.schema';
 
 @ApiTags('groups')
 @ApiBearerAuth('access-token')
@@ -37,14 +38,19 @@ export class GroupsController {
       user.userId,
       dto,
     );
-    return {
-      id: group.id,
-      conversationId: conversation.id,
-      name: group.name,
-      ownerId: group.ownerId,
-      memberCount: group.memberCount,
-      settings: group.settings,
-    };
+    return this.toSummary(group, conversation.id);
+  }
+
+  @ApiOperation({
+    summary: 'Get group details (name/avatar/description/settings)',
+  })
+  @Get(':id')
+  async getById(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    const group = await this.groupsService.getById(id, user.userId);
+    return this.toSummary(group, group.conversationId.toString());
   }
 
   @ApiOperation({ summary: 'List members with their roles' })
@@ -136,6 +142,19 @@ export class GroupsController {
         avatarUrl: group.avatarUrl,
         settings: group.settings,
       });
-    return group;
+    return this.toSummary(group, group.conversationId.toString());
+  }
+
+  private toSummary(group: GroupDocument, conversationId: string) {
+    return {
+      id: group.id,
+      conversationId,
+      name: group.name,
+      description: group.description,
+      avatarUrl: group.avatarUrl,
+      ownerId: group.ownerId,
+      memberCount: group.memberCount,
+      settings: group.settings,
+    };
   }
 }

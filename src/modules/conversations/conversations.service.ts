@@ -72,6 +72,7 @@ export class ConversationsService {
     Array<{
       conversation: ConversationDocument;
       participant: ConversationParticipantDocument;
+      otherParticipantIds: string[];
     }>
   > {
     const participants = await this.participantModel
@@ -96,11 +97,27 @@ export class ConversationsService {
       participants.map((p) => [p.conversationId.toString(), p]),
     );
 
+    // Needed so the client can resolve who's on the other end of a direct
+    // thread — the summary itself only carries the current user's participant doc.
+    const allParticipants = await this.participantModel
+      .find({ conversationId: { $in: conversationIds }, leftAt: null })
+      .select('conversationId userId')
+      .exec();
+    const otherIdsByConversation = new Map<string, string[]>();
+    for (const p of allParticipants) {
+      const key = p.conversationId.toString();
+      if (p.userId.toString() === userId) continue;
+      const list = otherIdsByConversation.get(key) ?? [];
+      list.push(p.userId.toString());
+      otherIdsByConversation.set(key, list);
+    }
+
     return conversations.map((conversation) => ({
       conversation,
       participant: participantByConversation.get(
         conversation.id,
       ) as ConversationParticipantDocument,
+      otherParticipantIds: otherIdsByConversation.get(conversation.id) ?? [],
     }));
   }
 
@@ -231,13 +248,33 @@ export class ConversationsService {
     );
   }
 
+  /**
+   * Upsert rather than insert: a user who left (leftAt set) keeps their old
+   * participant row rather than being deleted, so re-adding them must revive
+   * that row (clear leftAt) instead of inserting a second one — a second
+   * insert would collide with the unique (userId, conversationId) index.
+   */
   async addParticipantsWithRoles(
     conversationId: string | Types.ObjectId,
     entries: Array<{ userId: string; role: ParticipantRole }>,
     session?: ClientSession,
   ): Promise<void> {
-    await this.participantModel.insertMany(
-      entries.map(({ userId, role }) => ({ conversationId, userId, role })),
+    await this.participantModel.bulkWrite(
+      entries.map(({ userId, role }) => ({
+        updateOne: {
+          filter: { conversationId, userId },
+          update: {
+            $set: { role, leftAt: null, joinedAt: new Date() },
+            $setOnInsert: {
+              unreadCount: 0,
+              isMuted: false,
+              isArchived: false,
+              isPinned: false,
+            },
+          },
+          upsert: true,
+        },
+      })),
       { session },
     );
   }

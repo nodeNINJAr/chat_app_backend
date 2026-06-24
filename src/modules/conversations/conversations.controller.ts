@@ -34,8 +34,8 @@ export class ConversationsController {
       limit ? Number(limit) : undefined,
       before ? new Date(before) : undefined,
     );
-    return rows.map(({ conversation, participant }) =>
-      this.toSummary(conversation, participant),
+    return rows.map(({ conversation, participant, otherParticipantIds }) =>
+      this.toSummary(conversation, participant, otherParticipantIds),
     );
   }
 
@@ -55,7 +55,7 @@ export class ConversationsController {
       conversation.id,
       user.userId,
     );
-    return this.toSummary(conversation, participant);
+    return this.toSummary(conversation, participant, [dto.userId]);
   }
 
   @ApiOperation({ summary: 'Mute/archive/pin a conversation' })
@@ -83,6 +83,7 @@ export class ConversationsController {
   private toSummary(
     conversation: ConversationDocument,
     participant: ConversationParticipantDocument,
+    otherParticipantIds: string[],
   ) {
     return {
       id: conversation.id,
@@ -95,6 +96,7 @@ export class ConversationsController {
       isArchived: participant.isArchived,
       isPinned: participant.isPinned,
       role: participant.role,
+      otherParticipantIds,
     };
   }
 }

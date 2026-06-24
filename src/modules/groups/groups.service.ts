@@ -78,6 +78,15 @@ export class GroupsService {
     return group;
   }
 
+  async getById(groupId: string, requesterId: string): Promise<GroupDocument> {
+    const group = await this.findByIdOrThrow(groupId);
+    await this.conversationsService.assertActiveParticipant(
+      group.conversationId.toString(),
+      requesterId,
+    );
+    return group;
+  }
+
   async addMembers(
     groupId: string,
     requesterId: string,
