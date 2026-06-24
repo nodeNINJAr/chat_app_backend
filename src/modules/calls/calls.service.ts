@@ -105,6 +105,10 @@ export class CallsService {
     return (await this.redisService.exists(this.busyKey(userId))) === 1;
   }
 
+  getBusyCallId(userId: string): Promise<string | null> {
+    return this.redisService.get(this.busyKey(userId));
+  }
+
   private busyKey(userId: string): string {
     return `call:busy:${userId}`;
   }

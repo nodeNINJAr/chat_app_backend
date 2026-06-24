@@ -77,9 +77,49 @@ export class CallGateway implements OnGatewayConnection, OnGatewayDisconnect {
     await socket.join(userRoom(userId));
   }
 
-  handleDisconnect(): void {
-    // Ringing/active calls are left to caller-side timeout or explicit call:end;
-    // a disconnect mid-call doesn't by itself end the call (other tabs/devices may still hold it).
+  async handleDisconnect(socket: AuthedSocket): Promise<void> {
+    const userId = socket.data?.userId;
+    if (!userId) return;
+
+    // A disconnecting ringing party means the call never connects either way
+    // (no other tab/device can pick up signaling for an unaccepted call).
+    for (const [callId, entry] of this.ringing) {
+      if (entry.callerId !== userId && entry.calleeId !== userId) continue;
+      clearTimeout(entry.timeout);
+      this.ringing.delete(callId);
+      await this.callsService.markEnded(callId, 'cancelled');
+      const otherPartyId =
+        entry.callerId === userId ? entry.calleeId : entry.callerId;
+      this.server
+        .to(userRoom(otherPartyId))
+        .emit('call:cancelled', { callId, reason: 'peer_disconnected' });
+    }
+
+    // An active call's busy flag must be cleared on disconnect too, otherwise
+    // a dropped connection (network blip, tab close, lost socket auth) leaves
+    // both parties permanently unable to call each other until the 4h TTL expires.
+    const callId = await this.callsService.getBusyCallId(userId);
+    if (!callId) return;
+
+    const call = await this.callsService.findById(callId);
+    if (!call) {
+      await this.callsService.clearBusy(userId);
+      return;
+    }
+
+    const wasActive = call.status === 'active';
+    await this.callsService.markEnded(
+      callId,
+      wasActive ? 'completed' : 'cancelled',
+    );
+    await this.callsService.clearBusy(call.callerId.toString());
+    await this.callsService.clearBusy(call.calleeId.toString());
+
+    const otherPartyId =
+      userId === call.callerId.toString()
+        ? call.calleeId.toString()
+        : call.callerId.toString();
+    this.server.to(userRoom(otherPartyId)).emit('call:end', { callId });
   }
 
   @SubscribeMessage('call:initiate')
