@@ -15,7 +15,15 @@ async function bootstrap() {
   redisIoAdapter.connectToRedis();
   app.useWebSocketAdapter(redisIoAdapter);
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      // Uploaded media is intentionally served cross-origin (frontend and
+      // backend are different sites in production) — the default
+      // same-origin CORP blocks browsers from loading it in <img>/<audio>/
+      // <video> tags entirely.
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   app.use(cookieParser());
   app.enableCors({
     origin: config.getOrThrow<string>('CORS_ORIGIN'),
