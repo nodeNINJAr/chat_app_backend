@@ -52,4 +52,13 @@ export const envValidationSchema = Joi.object({
   TURN_SECRET: Joi.string().min(16).required(),
   TURN_URLS: Joi.string().default('stun:localhost:3478,turn:localhost:3478'),
   TURN_CREDENTIAL_TTL_SECONDS: Joi.number().default(300),
+
+  PUSH_DRIVER: Joi.string().valid('console', 'fcm').default('console'),
+  // Raw JSON contents of a Firebase service account key file, not a path —
+  // keeps deployment to one secret env var instead of also shipping a file.
+  FCM_SERVICE_ACCOUNT_JSON: Joi.string().when('PUSH_DRIVER', {
+    is: 'fcm',
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
 });
