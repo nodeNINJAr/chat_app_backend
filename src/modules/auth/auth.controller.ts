@@ -17,6 +17,7 @@ import type { AuthenticatedUser } from '../../common/types/authenticated-user.ty
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { AuthService, TokenPair } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 
 const REFRESH_COOKIE = 'refreshToken';
 
@@ -39,6 +40,10 @@ export class AuthController {
     this.setRefreshCookie(res, tokens.refreshToken);
     return {
       accessToken: tokens.accessToken,
+      // Mobile has no cookie jar, so it stores this itself (SecureStore) and
+      // sends it back explicitly on /auth/refresh and /auth/logout. Web
+      // clients ignore this field and rely on the cookie instead.
+      refreshToken: tokens.refreshToken,
       user: {
         id: user.id,
         username: user.username,
@@ -59,6 +64,7 @@ export class AuthController {
     this.setRefreshCookie(res, tokens.refreshToken);
     return {
       accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
       user: {
         id: user.id,
         username: user.username,
@@ -70,21 +76,25 @@ export class AuthController {
   @Public()
   @ApiOperation({
     summary:
-      'Rotate the refresh token (read from httpOnly cookie) for a new access token',
+      'Rotate the refresh token (httpOnly cookie, or body for mobile) for a new access token',
   })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(
+    @Body() dto: RefreshTokenDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<{ accessToken: string }> {
-    const refreshToken = this.extractRefreshCookie(req);
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    const refreshToken = this.extractRefreshToken(req, dto);
     if (!refreshToken) {
       throw new UnauthorizedException('missing refresh token');
     }
     const tokens: TokenPair = await this.authService.refresh(refreshToken);
     this.setRefreshCookie(res, tokens.refreshToken);
-    return { accessToken: tokens.accessToken };
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
   }
 
   @ApiBearerAuth('access-token')
@@ -93,10 +103,11 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async logout(
     @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RefreshTokenDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const refreshToken = this.extractRefreshCookie(req);
+    const refreshToken = this.extractRefreshToken(req, dto);
     if (refreshToken) {
       await this.authService.logout(user.userId, refreshToken);
     }
@@ -106,6 +117,13 @@ export class AuthController {
 
   private setRefreshCookie(res: Response, refreshToken: string) {
     res.cookie(REFRESH_COOKIE, refreshToken, this.cookieOptions());
+  }
+
+  private extractRefreshToken(
+    req: Request,
+    dto: RefreshTokenDto,
+  ): string | undefined {
+    return this.extractRefreshCookie(req) ?? dto.refreshToken;
   }
 
   private extractRefreshCookie(req: Request): string | undefined {
