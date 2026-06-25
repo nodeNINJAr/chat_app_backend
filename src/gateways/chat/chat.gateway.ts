@@ -29,10 +29,14 @@ import { ChatRoomRegistry } from '../../infrastructure/websocket/chat-room-regis
 import { UsersService } from '../../modules/users/users.service';
 
 interface AuthedSocket extends Socket {
-  data: { userId: string };
+  data: { userId: string; presenceRefreshInterval?: NodeJS.Timeout };
 }
 
 const TYPING_TTL_SECONDS = 5;
+// Comfortably under PresenceService's 45s key TTL — without a periodic
+// refresh, a still-connected socket's presence key silently expires from
+// Redis, making other users see it go offline despite never disconnecting.
+const PRESENCE_REFRESH_INTERVAL_MS = 20_000;
 
 @UsePipes(
   new ValidationPipe({
@@ -103,9 +107,15 @@ export class ChatGateway
       await this.conversationsService.listMyOtherParticipantIds(userId);
     const onlineUserIds = await this.presenceService.filterOnline(otherUserIds);
     socket.emit('presence:snapshot', { onlineUserIds });
+
+    socket.data.presenceRefreshInterval = setInterval(() => {
+      void this.presenceService.refresh(userId, socket.id);
+    }, PRESENCE_REFRESH_INTERVAL_MS);
   }
 
   async handleDisconnect(socket: AuthedSocket): Promise<void> {
+    clearInterval(socket.data?.presenceRefreshInterval);
+
     const userId = socket.data?.userId;
     if (!userId) return;
 
