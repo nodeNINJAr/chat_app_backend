@@ -16,4 +16,9 @@ export class UpdateParticipantStateDto {
   @IsOptional()
   @IsBoolean()
   isPinned?: boolean;
+
+  @ApiPropertyOptional({ description: 'Delete this chat for me only' })
+  @IsOptional()
+  @IsBoolean()
+  isDeletedForUser?: boolean;
 }

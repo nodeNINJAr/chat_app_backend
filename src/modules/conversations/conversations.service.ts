@@ -80,7 +80,7 @@ export class ConversationsService {
     }>
   > {
     const participants = await this.participantModel
-      .find({ userId, leftAt: null })
+      .find({ userId, leftAt: null, isDeletedForUser: { $ne: true } })
       .exec();
     const conversationIds = participants.map((p) => p.conversationId);
 
@@ -229,7 +229,7 @@ export class ConversationsService {
   ): Promise<void> {
     await this.participantModel.updateMany(
       { conversationId, userId: { $ne: senderId }, leftAt: null },
-      { $inc: { unreadCount: 1 } },
+      { $inc: { unreadCount: 1 }, $set: { isDeletedForUser: false } },
     );
   }
 

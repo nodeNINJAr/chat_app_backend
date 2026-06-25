@@ -95,6 +95,7 @@ export class ConversationsController {
       isMuted: participant.isMuted,
       isArchived: participant.isArchived,
       isPinned: participant.isPinned,
+      isDeletedForUser: participant.isDeletedForUser,
       role: participant.role,
       otherParticipantIds,
     };

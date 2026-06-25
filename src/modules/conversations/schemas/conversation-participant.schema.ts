@@ -42,6 +42,14 @@ export class ConversationParticipant {
   @Prop({ default: false })
   isPinned: boolean;
 
+  // "Delete chat for me" — hides the conversation from this user's own list
+  // without touching membership/leftAt, so it doesn't leave a group or stop
+  // real-time delivery. Cleared automatically when a new message arrives
+  // (see ConversationsService.incrementUnreadForOthers), mirroring how
+  // WhatsApp's "delete chat" brings a conversation back on new activity.
+  @Prop({ default: false })
+  isDeletedForUser: boolean;
+
   @Prop({ default: () => new Date() })
   joinedAt: Date;
 
