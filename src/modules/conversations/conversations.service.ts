@@ -7,6 +7,11 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model, Types } from 'mongoose';
 import { conversationRoom } from '../../common/helpers/rooms';
 import { ChatRoomRegistry } from '../../infrastructure/websocket/chat-room-registry.service';
+import {
+  MessageReceipt,
+  MessageReceiptDocument,
+  ReceiptStatus,
+} from '../messages/schemas/message-receipt.schema';
 import { UpdateParticipantStateDto } from './dto/update-participant-state.dto';
 import {
   ConversationParticipant,
@@ -27,6 +32,8 @@ export class ConversationsService {
     private readonly conversationModel: Model<ConversationDocument>,
     @InjectModel(ConversationParticipant.name)
     private readonly participantModel: Model<ConversationParticipantDocument>,
+    @InjectModel(MessageReceipt.name)
+    private readonly receiptModel: Model<MessageReceiptDocument>,
     private readonly chatRoomRegistry: ChatRoomRegistry,
   ) {}
 
@@ -77,6 +84,7 @@ export class ConversationsService {
       conversation: ConversationDocument;
       participant: ConversationParticipantDocument;
       otherParticipantIds: string[];
+      lastMessageStatus: ReceiptStatus | null;
     }>
   > {
     const participants = await this.participantModel
@@ -116,12 +124,44 @@ export class ConversationsService {
       otherIdsByConversation.set(key, list);
     }
 
+    // Read-receipt status only makes sense for the current user's own last
+    // message in a 1:1 thread (group "read by all" semantics are out of
+    // scope here) — batch-fetch the other participant's receipt for each
+    // such message in one query rather than N+1.
+    const directSentByMe = conversations.filter(
+      (c) =>
+        c.type === 'direct' && c.lastMessage?.senderId.toString() === userId,
+    );
+    const otherIdByMessageId = new Map<string, string>();
+    for (const c of directSentByMe) {
+      const otherId = otherIdsByConversation.get(c.id)?.[0];
+      if (otherId)
+        otherIdByMessageId.set(c.lastMessage!.messageId.toString(), otherId);
+    }
+    const receipts = otherIdByMessageId.size
+      ? await this.receiptModel
+          .find({
+            messageId: { $in: [...otherIdByMessageId.keys()] },
+            userId: { $in: [...otherIdByMessageId.values()] },
+          })
+          .select('messageId status')
+          .exec()
+      : [];
+    const statusByMessageId = new Map(
+      receipts.map((r) => [r.messageId.toString(), r.status]),
+    );
+
     return conversations.map((conversation) => ({
       conversation,
       participant: participantByConversation.get(
         conversation.id,
       ) as ConversationParticipantDocument,
       otherParticipantIds: otherIdsByConversation.get(conversation.id) ?? [],
+      lastMessageStatus: conversation.lastMessage
+        ? (statusByMessageId.get(
+            conversation.lastMessage.messageId.toString(),
+          ) ?? null)
+        : null,
     }));
   }
 

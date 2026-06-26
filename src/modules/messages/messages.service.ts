@@ -346,6 +346,12 @@ export class MessagesService {
     if (message.type === 'text') {
       return (message.content.text ?? '').slice(0, 120);
     }
-    return `[${message.type}]`;
+    const labels: Record<string, string> = {
+      image: 'Photo',
+      video: 'Video',
+      audio: 'Audio',
+      file: 'File',
+    };
+    return labels[message.type] ?? message.type;
   }
 }

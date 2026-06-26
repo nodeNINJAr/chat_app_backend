@@ -10,6 +10,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user.type';
+import type { ReceiptStatus } from '../messages/schemas/message-receipt.schema';
 import { ConversationsService } from './conversations.service';
 import { CreateDirectConversationDto } from './dto/create-direct-conversation.dto';
 import { UpdateParticipantStateDto } from './dto/update-participant-state.dto';
@@ -34,8 +35,14 @@ export class ConversationsController {
       limit ? Number(limit) : undefined,
       before ? new Date(before) : undefined,
     );
-    return rows.map(({ conversation, participant, otherParticipantIds }) =>
-      this.toSummary(conversation, participant, otherParticipantIds),
+    return rows.map(
+      ({ conversation, participant, otherParticipantIds, lastMessageStatus }) =>
+        this.toSummary(
+          conversation,
+          participant,
+          otherParticipantIds,
+          lastMessageStatus,
+        ),
     );
   }
 
@@ -84,6 +91,7 @@ export class ConversationsController {
     conversation: ConversationDocument,
     participant: ConversationParticipantDocument,
     otherParticipantIds: string[],
+    lastMessageStatus: ReceiptStatus | null = null,
   ) {
     return {
       id: conversation.id,
@@ -91,6 +99,7 @@ export class ConversationsController {
       groupId: conversation.groupId,
       lastMessage: conversation.lastMessage,
       lastMessageAt: conversation.lastMessageAt,
+      lastMessageStatus,
       unreadCount: participant.unreadCount,
       isMuted: participant.isMuted,
       isArchived: participant.isArchived,
