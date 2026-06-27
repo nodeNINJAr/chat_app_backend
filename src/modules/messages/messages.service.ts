@@ -6,7 +6,9 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { ADMIN_ROLES } from '../../common/constants/roles';
 import { ConversationsService } from '../conversations/conversations.service';
+import { Group, GroupDocument } from '../groups/schemas/group.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
 import { DeleteMessageDto } from './dto/delete-message.dto';
@@ -32,6 +34,8 @@ export class MessagesService {
     private readonly messageModel: Model<MessageDocument>,
     @InjectModel(MessageReceipt.name)
     private readonly receiptModel: Model<MessageReceiptDocument>,
+    @InjectModel(Group.name)
+    private readonly groupModel: Model<GroupDocument>,
     private readonly conversationsService: ConversationsService,
     private readonly usersService: UsersService,
     private readonly notificationsService: NotificationsService,
@@ -41,10 +45,11 @@ export class MessagesService {
     senderId: string,
     dto: SendMessageDto,
   ): Promise<CreateMessageResult> {
-    await this.conversationsService.assertActiveParticipant(
+    const participant = await this.conversationsService.assertActiveParticipant(
       dto.conversationId,
       senderId,
     );
+    await this.assertCanSendMessage(dto.conversationId, participant.role);
     const participantIds = await this.conversationsService.listParticipantIds(
       dto.conversationId,
     );
@@ -203,10 +208,12 @@ export class MessagesService {
 
     const results: CreateMessageResult[] = [];
     for (const targetConversationId of dto.targetConversationIds) {
-      await this.conversationsService.assertActiveParticipant(
-        targetConversationId,
-        userId,
-      );
+      const participant =
+        await this.conversationsService.assertActiveParticipant(
+          targetConversationId,
+          userId,
+        );
+      await this.assertCanSendMessage(targetConversationId, participant.role);
       const participantIds =
         await this.conversationsService.listParticipantIds(
           targetConversationId,
@@ -332,6 +339,27 @@ export class MessagesService {
       userId,
       upToMessageId,
     );
+  }
+
+  // Group.conversationId is unique-indexed, so this is a cheap no-op lookup
+  // for direct conversations (no matching group, nothing to enforce).
+  private async assertCanSendMessage(
+    conversationId: string,
+    role: string,
+  ): Promise<void> {
+    const group = await this.groupModel
+      .findOne({ conversationId })
+      .select('settings.whoCanSendMessages')
+      .exec();
+    if (
+      group &&
+      group.settings.whoCanSendMessages === 'admins' &&
+      !ADMIN_ROLES.includes(role)
+    ) {
+      throw new ForbiddenException(
+        'only admins can send messages in this group',
+      );
+    }
   }
 
   private async findOrThrow(messageId: string): Promise<MessageDocument> {

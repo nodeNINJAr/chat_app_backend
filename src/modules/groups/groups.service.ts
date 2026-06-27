@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model } from 'mongoose';
+import { ADMIN_ROLES } from '../../common/constants/roles';
 import { ConversationsService } from '../conversations/conversations.service';
 import type { ConversationParticipantDocument } from '../conversations/schemas/conversation-participant.schema';
 import type { ConversationDocument } from '../conversations/schemas/conversation.schema';
@@ -12,8 +13,6 @@ import { AddMembersDto } from './dto/add-members.dto';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupSettingsDto } from './dto/update-group-settings.dto';
 import { Group, GroupDocument } from './schemas/group.schema';
-
-const ADMIN_ROLES = ['owner', 'admin'];
 
 @Injectable()
 export class GroupsService {
