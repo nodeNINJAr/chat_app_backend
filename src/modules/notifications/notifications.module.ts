@@ -15,12 +15,14 @@ import { FcmPushSender } from './senders/fcm-push.sender';
       inject: [ConfigService],
       // Constructed manually (not via the providers array) so the FCM SDK is
       // only initialized when PUSH_DRIVER=fcm — it requires a service account
-      // and must not run during local dev or tests.
+      // and must not run during local dev or tests. Nest still calls
+      // onModuleInit on the returned instance itself (any provider value
+      // implementing OnModuleInit gets it invoked once during bootstrap),
+      // so it must not be called here too — doing so double-initialized the
+      // Firebase app and crashed on the second call.
       useFactory: (configService: ConfigService) => {
         if (configService.get<string>('PUSH_DRIVER') === 'fcm') {
-          const sender = new FcmPushSender(configService);
-          sender.onModuleInit();
-          return sender;
+          return new FcmPushSender(configService);
         }
         return new ConsolePushSender();
       },
