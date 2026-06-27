@@ -22,9 +22,9 @@ export class LocalStorageProvider implements StorageProvider {
       .replace(/\/$/, '');
   }
 
-  buildKey(userId: string, fileName: string): string {
+  buildKey(userId: string, fileName: string, prefix = 'uploads'): string {
     const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-    return `uploads/${userId}/${randomUUID()}-${safeName}`;
+    return `${prefix}/${userId}/${randomUUID()}-${safeName}`;
   }
 
   getUploadTarget(
@@ -40,6 +40,10 @@ export class LocalStorageProvider implements StorageProvider {
 
   getDownloadUrl(key: string, expiresInSeconds: number): Promise<string> {
     return Promise.resolve(this.signedUrl(key, expiresInSeconds));
+  }
+
+  getPublicUrl(key: string): string {
+    return `${this.publicApiUrl}/uploads/local-store/public/${encodeKey(key)}`;
   }
 
   private signedUrl(key: string, expiresInSeconds: number): string {

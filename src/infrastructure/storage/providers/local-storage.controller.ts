@@ -84,6 +84,30 @@ export class LocalStorageController {
     createReadStream(filePath).pipe(res);
   }
 
+  // Avatars need a URL that stays valid forever (persisted on User/Group
+  // documents and rendered directly, with no re-fetch of a fresh signed
+  // URL), unlike chat media which is intentionally access-controlled via
+  // short-lived signatures. Scoped to the `avatars/` prefix only — every
+  // other key still requires a valid signature via the route above, and
+  // this is a distinct two-segment path so it can't collide with that
+  // single-segment `:encodedKey` route.
+  @Public()
+  @Get('public/:encodedKey')
+  servePublic(
+    @Param('encodedKey') encodedKey: string,
+    @Res() res: Response,
+  ): void {
+    const key = decodeKey(encodedKey);
+    if (!key.startsWith('avatars/')) {
+      throw new UnauthorizedException('this key is not publicly accessible');
+    }
+    const filePath = this.resolveSafePath(key);
+    if (!existsSync(filePath)) {
+      throw new NotFoundException('file not found');
+    }
+    createReadStream(filePath).pipe(res);
+  }
+
   private verifyAndDecode(
     encodedKey: string,
     exp: string,

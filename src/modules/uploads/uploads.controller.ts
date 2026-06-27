@@ -32,4 +32,12 @@ export class UploadsController {
   getDownloadUrl(@Query('key') key: string) {
     return this.uploadsService.getDownloadUrl(key);
   }
+
+  @ApiOperation({
+    summary: 'Get a permanent public URL for an uploaded avatar',
+  })
+  @Get('public-url')
+  getPublicUrl(@Query('key') key: string) {
+    return { url: this.uploadsService.getPublicUrl(key) };
+  }
 }

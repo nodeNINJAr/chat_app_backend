@@ -1,7 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsInt, IsString, Max, Min } from 'class-validator';
 
-export const UPLOAD_KINDS = ['image', 'video', 'audio', 'document'] as const;
+export const UPLOAD_KINDS = [
+  'image',
+  'video',
+  'audio',
+  'document',
+  'avatar',
+] as const;
 export type UploadKind = (typeof UPLOAD_KINDS)[number];
 
 export class RequestUploadUrlDto {
